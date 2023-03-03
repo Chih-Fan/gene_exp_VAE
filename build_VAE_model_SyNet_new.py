@@ -10,11 +10,11 @@ class Encoder(nn.Module):
             raise ValueError('Must explicitly declare input size and latent space dimension')
             
         super(Encoder, self).__init__()
-        self.inp_dim = input_size
-        self.zdim = encoder_dims[-1]
+        self.inp_dim = input_size  
+        self.zdim = encoder_dims[-1]  # The last hidden layer of encoder. 
 
-        current_dim = input_size
-        self.layers = nn.ModuleList()
+        current_dim = input_size  # The initial current dim is the input size. 
+        self.layers = nn.ModuleList()  # This is a list of layers with their sizes. 
         for hdim in encoder_dims:
             print("current_hdim: " + str(hdim))
             if hdim == self.zdim:
@@ -26,7 +26,7 @@ class Encoder(nn.Module):
                 self.layers.append(nn.LeakyReLU(0.2))
                 self.layers.append(nn.BatchNorm1d(hdim))
             current_dim = hdim
-            
+        
         #original code copied from ACTIVA
         # feed forward layers  
         # self.enc_sequential = nn.Sequential(
@@ -56,7 +56,7 @@ class Encoder(nn.Module):
 
         out = self.layers(x);
         # get mean and variance 
-        mu, variance = out.chunk(2, dim=1)      
+        mu, variance = out.chunk(2, dim=1)      # Why can chunk get us mu and var?
         
         return mu, variance
 
@@ -181,7 +181,7 @@ class VAE(nn.Module):
         # the reconstructed data
         x_r = self.Decoder(z)
         
-        return  mu, z, log_var
+        return  z, mu, log_var, x_r
 
     # def reparameterize(self, mean, variance):
     #         """

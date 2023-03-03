@@ -128,7 +128,7 @@ class VAE(nn.Module):
         # the reconstructed data
         x_r = self.Decoder(z)
             
-        return  mu, z, log_var
+        return  z, mu, log_var, x_r
 
 def main():
     global args, model
@@ -140,20 +140,23 @@ def main():
     train_dataloader, test_dataloader = CSV_reader(train_data_path=args.trd, test_data_path=args.ted, batch_size=args.bs, shuffle=True)
     inp_size = [batch[0].shape[1] for _, batch in enumerate(train_dataloader, 0)][0]
 
-    model = VAE(Encoder, Decoder).to(DEVICE)  # Or give number of layers as arguments.
+    # encoder = Encoder(input_size=inp_size)
+    # decoder = Decoder(input_size=200)  
+
+    model = VAE(Encoder(input_size=inp_size), Decoder(input_size=200)).to(DEVICE)  # Or give number of layers as arguments.
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     model.train()
 
     for epoch in range(args.epochs):
         overall_loss = 0
-        for batch_idx, x in enumerate(train_dataloader):
+        for batch_idx, x in enumerate(train_dataloader):  # How does the train_dataloader look like? We don't have labels. 
             x = x.view(args.bs, inp_size)  # Returns a new tensor with the same data but of a different shape as given.
             x = x.to(DEVICE)
 
             optimizer.zero_grad()
 
-            x_hat, mean, log_var = model(x)
-            loss = VAE.loss_function(x, x_hat, mean, log_var)
+            z, mu, log_var, x_r= model(x)
+            loss = VAE.loss_function(x_r, x, mu, log_var)
             
             overall_loss += loss.item()
             
