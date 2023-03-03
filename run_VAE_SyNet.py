@@ -51,8 +51,9 @@ class Encoder(nn.Module):
             Forward pass of the encoder
             
             """
-
-            out = self.layers(x);
+            out = x
+            for sub_module in self.layers:
+                out = sub_module(out)
             # get mean and variance 
             mu, variance = out.chunk(2, dim=1)      
             
@@ -73,12 +74,12 @@ class Decoder(nn.Module):
         if decoder_dims == None or input_size == None:
             raise ValueError('Must explicitly declare input size (==output size) and decoder layer size')
             
-        self.inp_dim = input_size
+        # self.inp_dim = decoder_dims[0]
         #self.zdim = decoder_dims[-1]
 
-        current_dim = input_size
+        current_dim = decoder_dims[0]
         self.layers = nn.ModuleList()
-        for hdim in decoder_dims:
+        for hdim in decoder_dims[1:]:
             print("current_hdim: " + str(hdim))
             self.layers.append(nn.Linear(current_dim, hdim))
             self.layers.append(nn.LeakyReLU(0.2))
@@ -92,8 +93,9 @@ class Decoder(nn.Module):
         Forward pass of the Decoder
             
         """
-        
-        out =  self.layers(z);
+        out = z
+        for sub_module in self.layers:
+            out = sub_module(out)
         return out
     
 class VAE(nn.Module):
@@ -139,24 +141,28 @@ def main():
 
     train_dataloader, test_dataloader = CSV_reader(train_data_path=args.trd, test_data_path=args.ted, batch_size=args.bs, shuffle=True)
     inp_size = [batch[0].shape[1] for _, batch in enumerate(train_dataloader, 0)][0]
+    # print([batch for _, batch in enumerate(train_dataloader, 0)][0])
 
     # encoder = Encoder(input_size=inp_size)
     # decoder = Decoder(input_size=200)  
 
-    model = VAE(Encoder(input_size=inp_size), Decoder(input_size=200)).to(DEVICE)  # Or give number of layers as arguments.
+    model = VAE(Encoder(input_size=inp_size), Decoder(input_size=inp_size)).to(DEVICE)  # Or give number of layers as arguments.
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     model.train()
 
     for epoch in range(args.epochs):
         overall_loss = 0
         for batch_idx, x in enumerate(train_dataloader):  # How does the train_dataloader look like? We don't have labels. 
-            x = x.view(args.bs, inp_size)  # Returns a new tensor with the same data but of a different shape as given.
+
+            x = x.view(len(x), inp_size)  # Returns a new tensor with the same data but of a different shape as given.
+            x = x.to(torch.float32)
             x = x.to(DEVICE)
 
             optimizer.zero_grad()
 
             z, mu, log_var, x_r= model(x)
-            loss = VAE.loss_function(x_r, x, mu, log_var)
+            print(f'xdim: {x.shape}, x_r: {x_r.shape}')
+            loss = model.loss_function(pred=x_r, target=x, mean=mu, log_var=log_var)
             
             overall_loss += loss.item()
             
