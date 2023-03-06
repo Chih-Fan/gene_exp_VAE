@@ -167,3 +167,4 @@ if __name__ == '__main__':
         print(var_name, "\t", optimizer.state_dict()[var_name])
     
     torch.save(model.state_dict(), args.state_dict_dir)
+#onnxruntime https://onnxruntime.ai/docs/tutorials/
