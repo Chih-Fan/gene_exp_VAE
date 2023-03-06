@@ -5,15 +5,19 @@ import numpy as np
 
 
 class SyNet_Dataset(Dataset):
-    def __init__(self, gene_exp_file, transform=None):
+    def __init__(self, split_file, gene_exp_file, cvset, transform=None):
         self.gene_exp_df = pd.read_csv(gene_exp_file, index_col=[0])  # Not sure if index should be specified or not. 
+        self.split_df = pd.read_csv(split_file)
+
+        self.idx = np.where(self.split_df['cvset'] == cvset)[0]
+
         self.transform = transform
 
     def __len__(self):
-        return len(self.gene_exp_df)
+        return len(self.idx)
 
     def __getitem__(self, idx):
-        gene_exp = np.array([self.gene_exp_df.iloc[idx, 1:]])
+        gene_exp = np.array([self.gene_exp_df.iloc[self.idx[idx], 1:]])
         if self.transform:
             gene_exp = self.transform(gene_exp)  # Not sure if we need this transform argument here. 
         
