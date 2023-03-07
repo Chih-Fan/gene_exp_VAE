@@ -1,5 +1,6 @@
 # std libs
 import argparse
+import matplotlib.pyplot as plt
 
 
 # torch libs
@@ -16,9 +17,9 @@ from make_dataloaders_SyNet import CSV_reader
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-e', '--epochs', type=int, default=100, help='epochs')
 parser.add_argument('-b', '--bs', type=str, default=128, help='batch size')
-parser.add_argument('--trd', type=str, help='train data path')
-parser.add_argument('--ted', type=str, help='test data path')
-parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
+parser.add_argument('--ged', type=str, help='gene expression data path')
+parser.add_argument('--spld', type=str, help='split file path')
+parser.add_argument('--lr', type=float, default=0.0005, help='learning rate, default=0.0005')
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -132,14 +133,14 @@ class VAE(nn.Module):
             
         return  z, mu, log_var, x_r
 
+
 def main():
     global args, model
     args = parser.parse_args()
-
     
     print(DEVICE) 
 
-    train_dataloader, test_dataloader = CSV_reader(train_data_path=args.trd, test_data_path=args.ted, batch_size=args.bs, shuffle=True)
+    train_dataloader, val_dataloader, test_dataloader = CSV_reader(split_file=args.spld, gene_exp_file=args.ged,  batch_size=args.bs, shuffle=True)
     inp_size = [batch[0].shape[1] for _, batch in enumerate(train_dataloader, 0)][0]
     # print([batch for _, batch in enumerate(train_dataloader, 0)][0])
 
@@ -148,12 +149,15 @@ def main():
 
     model = VAE(Encoder(input_size=inp_size), Decoder(input_size=inp_size)).to(DEVICE)  # Or give number of layers as arguments.
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    model.train()
+    
+    train_loss_history = []
+    val_loss_history = []
 
     for epoch in range(args.epochs):
-        overall_loss = 0
+        # Training loop
+        model.train()
+        overall_train_loss = 0
         for batch_idx, x in enumerate(train_dataloader):  # How does the train_dataloader look like? We don't have labels. 
-
             x = x.view(len(x), inp_size)  # Returns a new tensor with the same data but of a different shape as given.
             x = x.to(torch.float32)
             x = x.to(DEVICE)
@@ -161,18 +165,40 @@ def main():
             optimizer.zero_grad()
 
             z, mu, log_var, x_r= model(x)
-            print(f'xdim: {x.shape}, x_r: {x_r.shape}')
-            loss = model.loss_function(pred=x_r, target=x, mean=mu, log_var=log_var)
-            
-            overall_loss += loss.item()
-            
-            loss.backward()
+            # print(f'xdim: {x.shape}, x_r: {x_r.shape}')
+            train_loss = model.loss_function(pred=x_r, target=x, mean=mu, log_var=log_var)
+                
+            overall_train_loss += train_loss.item()
+                
+            train_loss.backward()
             optimizer.step()
+
+        train_loss_history.append(overall_train_loss) 
+
+        # Validation loop
+        model.eval()
+        overall_val_loss = 0
+        for batch_idx, x in enumerate(val_dataloader):
+            x = x.view(len(x), inp_size)  # Returns a new tensor with the same data but of a different shape as given.
+            x = x.to(torch.float32)
+            x = x.to(DEVICE)
+
+            z, mu, log_var, x_r= model(x)
+            val_loss = model.loss_function(pred=x_r, target=x, mean=mu, log_var=log_var)
+            overall_val_loss += val_loss.item()  # Is this correct?
         
-        print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss: ", overall_loss / (batch_idx*args.bs))
-        
-    print("Finish!!")
+        val_loss_history.append(overall_val_loss)
+
+        with open('train_SyNet_VAE.log', 'w') as log:
+            log.writelines(["\tEpoch", str(epoch + 1), "\tTraining Loss: ", str(overall_train_loss / (batch_idx*args.bs)), "\tValidation Loss: ", str(overall_val_loss / (batch_idx*args.bs))])
+
+    with open('train_SyNet_VAE.log', 'w') as log:    
+        log.write("Finish")
     
+    plt.plot(overall_train_loss, label='train_loss')
+    plt.plot(overall_val_loss,label='val_loss')
+    plt.legend()
+    plt.savefig("/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/images/loss_history.png")
 
 if __name__ == "__main__":
     main()  

@@ -16,5 +16,5 @@ export LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib64
 
 python /hpc/compgen/users/cchang/Projects/gene_exp_VAE/scripts/run_VAE_SyNet.py \
 -e 200 \
---trd "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/df_train_data_gene_exp.csv" \
---ted "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/df_test_data_gene_exp.csv" 
+--ged "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/SyNet_Scaled_Batchcorrected_Labeled_Filtered_Data_Only.csv" \
+--spld "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/SyNet_batching_1.csv" 
