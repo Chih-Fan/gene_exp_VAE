@@ -1,5 +1,7 @@
 # std libs
 import argparse
+import csv
+import time
 import matplotlib.pyplot as plt
 
 
@@ -19,7 +21,9 @@ parser.add_argument('-e', '--epochs', type=int, default=100, help='epochs')
 parser.add_argument('-b', '--bs', type=str, default=128, help='batch size')
 parser.add_argument('--ged', type=str, help='gene expression data path')
 parser.add_argument('--spld', type=str, help='split file path')
-parser.add_argument('--lr', type=float, default=0.0005, help='learning rate, default=0.0005')
+parser.add_argument('--lr', type=float, default=5e-4, help='learning rate, default=0.0005')
+parser.add_argument('--wd', type=float, default=1e-1, help='weight decay in optimizer, default=0.1')
+parser.add_argument('--ralpha', type=float, default=2e-1, help='negative_slope of Leaky ReLU, default=0.2')
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -38,11 +42,12 @@ class Encoder(nn.Module):
             print("current_hdim: " + str(hdim))
             if hdim == self.zdim:
                 self.layers.append(nn.Linear(current_dim, 2*hdim))  # 2 because we have std and mean. 
-                self.layers.append(nn.LeakyReLU(0.2))
-                self.layers.append(nn.BatchNorm1d(2*hdim))
+                self.layers.append(nn.LeakyReLU(args.ralpha))
+                self.layers.append(nn.BatchNorm1d(2*hdim)) # Consider changing epsilon to 1e-02 if accuracy shows periodic fluctuations. See https://towardsdatascience.com/weight-decay-and-its-peculiar-effects-66e0aee3e7b8.
             else:
                 self.layers.append(nn.Linear(current_dim, hdim))
-                self.layers.append(nn.LeakyReLU(0.2))
+                # self.layers.append(nn.Dropout())  # Default drop out probability = 0.5. 
+                self.layers.append(nn.LeakyReLU(args.ralpha))
                 self.layers.append(nn.BatchNorm1d(hdim))
             current_dim = hdim
 
@@ -83,7 +88,7 @@ class Decoder(nn.Module):
         for hdim in decoder_dims[1:]:
             print("current_hdim: " + str(hdim))
             self.layers.append(nn.Linear(current_dim, hdim))
-            self.layers.append(nn.LeakyReLU(0.2))
+            self.layers.append(nn.LeakyReLU(args.ralpha))
             self.layers.append(nn.BatchNorm1d(hdim))
             current_dim = hdim
         self.layers.append(nn.Linear(current_dim, input_size))
@@ -148,12 +153,16 @@ def main():
     # decoder = Decoder(input_size=200)  
 
     model = VAE(Encoder(input_size=inp_size), Decoder(input_size=inp_size)).to(DEVICE)  # Or give number of layers as arguments.
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     
     train_loss_history = []
     val_loss_history = []
+    with open('train_SyNet_VAE.log', 'w', newline='') as log:
+        csv_writer=csv.writer(log)
+        csv_writer.writerow(['epoch', 'time_taken', 'train_loss', 'val_loss'])
 
     for epoch in range(args.epochs):
+        start = time.time()
         # Training loop
         model.train()
         overall_train_loss = 0
@@ -173,7 +182,7 @@ def main():
             train_loss.backward()
             optimizer.step()
 
-        train_loss_history.append(overall_train_loss) 
+        train_loss_history.append(overall_train_loss / (batch_idx*args.bs)) 
 
         # Validation loop
         model.eval()
@@ -187,16 +196,17 @@ def main():
             val_loss = model.loss_function(pred=x_r, target=x, mean=mu, log_var=log_var)
             overall_val_loss += val_loss.item()  # Is this correct?
         
-        val_loss_history.append(overall_val_loss)
+        val_loss_history.append(overall_val_loss / (batch_idx*args.bs))
 
-        with open('train_SyNet_VAE.log', 'w') as log:
-            log.writelines(["\tEpoch", str(epoch + 1), "\tTraining Loss: ", str(overall_train_loss / (batch_idx*args.bs)), "\tValidation Loss: ", str(overall_val_loss / (batch_idx*args.bs))])
+        end = time.time()
+        with open('train_SyNet_VAE.log', 'a') as log:
+            csv_writer = csv.writer(log)
+            csv_writer.writerow([str(epoch + 1), str(end-start), str(overall_train_loss / (batch_idx*args.bs)), str(overall_val_loss / (batch_idx*args.bs))])
 
-    with open('train_SyNet_VAE.log', 'w') as log:    
-        log.write("Finish")
+
     
-    plt.plot(overall_train_loss, label='train_loss')
-    plt.plot(overall_val_loss,label='val_loss')
+    plt.plot(train_loss_history, label='train_loss')
+    plt.plot(val_loss_history,label='val_loss')
     plt.legend()
     plt.savefig("/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/images/loss_history.png")
 

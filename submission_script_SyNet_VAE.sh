@@ -15,6 +15,7 @@ source activate synet_vae
 export LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib64
 
 python /hpc/compgen/users/cchang/Projects/gene_exp_VAE/scripts/run_VAE_SyNet.py \
--e 200 \
+-e 350 \
 --ged "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/SyNet_Scaled_Batchcorrected_Labeled_Filtered_Data_Only.csv" \
---spld "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/SyNet_batching_1.csv" 
+--spld "/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/SyNet_batching_1.csv"  \
+--wd 1e-2
