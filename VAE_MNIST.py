@@ -23,7 +23,6 @@ parser.add_argument('--hiddim', type=int, default=400, help='hidden layer dimens
 parser.add_argument('-l', '--ladim', type=int, default=200, help='latent space dimension')
 parser.add_argument('-r', '--lr', type=np.float32, default=1e-3, help='learning rate')
 parser.add_argument('-e', '--epochs', type=int, default=30, help='epochs')
-parser.add_argument('-d', '--state_dict_dir', default= './VAE_MNIST_state_dict.pt', help='directory to save the learned parameters (state dict)')
 args = parser.parse_args()
 
 # VAE
@@ -142,6 +141,8 @@ if __name__ == '__main__':
     for epoch in range(args.epochs):
         overall_loss = 0
         for batch_idx, (x, _) in enumerate(train_loader):
+            print(x)
+            print(x.size)
             x = x.view(args.batch, args.xdim)
             x = x.to(DEVICE)
 
@@ -166,5 +167,4 @@ if __name__ == '__main__':
     for var_name in optimizer.state_dict():
         print(var_name, "\t", optimizer.state_dict()[var_name])
     
-    torch.save(model.state_dict(), args.state_dict_dir)
 #onnxruntime https://onnxruntime.ai/docs/tutorials/

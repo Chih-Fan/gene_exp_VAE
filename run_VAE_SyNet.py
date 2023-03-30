@@ -17,13 +17,18 @@ from make_dataloaders_SyNet import CSV_reader
 
 # Key word arguments
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-e', '--epochs', type=int, default=100, help='epochs')
-parser.add_argument('-b', '--bs', type=str, default=128, help='batch size')
+parser.add_argument('-e', '--epochs', type=int, default=350, help='epochs')
+parser.add_argument('-b', '--bs', type=int, default=128, help='batch size')
 parser.add_argument('--ged', type=str, help='gene expression data path')
 parser.add_argument('--spld', type=str, help='split file path')
-parser.add_argument('--lr', type=float, default=5e-4, help='learning rate, default=0.0005')
-parser.add_argument('--wd', type=float, default=1e-1, help='weight decay in optimizer, default=0.1')
+parser.add_argument('--dr', type=float, default=0.5, help='dropout rate')
+parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate, default=0.0001')
+parser.add_argument('--wd', type=float, default=5e-4, help='weight decay in optimizer, default=0.0005')
 parser.add_argument('--ralpha', type=float, default=2e-1, help='negative_slope of Leaky ReLU, default=0.2')
+parser.add_argument('--logd', type=str, default='/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/train_SyNet_VAE.log', help='log file saving directory')
+parser.add_argument('--imd', type=str, default='/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/images/loss_history.png', help='loss history plot saving directory')
+# parser.add_argument('--lrm', type=str, help='learning rate model')
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,14 +44,15 @@ class Encoder(nn.Module):
         current_dim = input_size
         self.layers = nn.ModuleList()
         for hdim in encoder_dims:
-            print("current_hdim: " + str(hdim))
+            # print("current_hdim: " + str(hdim))
             if hdim == self.zdim:
                 self.layers.append(nn.Linear(current_dim, 2*hdim))  # 2 because we have std and mean. 
+                self.layers.append(nn.Dropout(args.dr))
                 self.layers.append(nn.LeakyReLU(args.ralpha))
                 self.layers.append(nn.BatchNorm1d(2*hdim)) # Consider changing epsilon to 1e-02 if accuracy shows periodic fluctuations. See https://towardsdatascience.com/weight-decay-and-its-peculiar-effects-66e0aee3e7b8.
             else:
                 self.layers.append(nn.Linear(current_dim, hdim))
-                # self.layers.append(nn.Dropout())  # Default drop out probability = 0.5. 
+                self.layers.append(nn.Dropout(args.dr))  # Default drop out probability = 0.5. 
                 self.layers.append(nn.LeakyReLU(args.ralpha))
                 self.layers.append(nn.BatchNorm1d(hdim))
             current_dim = hdim
@@ -86,8 +92,9 @@ class Decoder(nn.Module):
         current_dim = decoder_dims[0]
         self.layers = nn.ModuleList()
         for hdim in decoder_dims[1:]:
-            print("current_hdim: " + str(hdim))
+            # print("current_hdim: " + str(hdim))
             self.layers.append(nn.Linear(current_dim, hdim))
+            self.layers.append(nn.Dropout(args.dr))
             self.layers.append(nn.LeakyReLU(args.ralpha))
             self.layers.append(nn.BatchNorm1d(hdim))
             current_dim = hdim
@@ -143,8 +150,7 @@ def main():
     global args, model
     args = parser.parse_args()
     
-    print(DEVICE) 
-
+    print('Device: '+ str(DEVICE) + ', Epochs: ' + str(args.epochs) + ', Batch size: ' + str(args.bs) + ', Initial lr: ' + str(args.lr) + ', Dropout: ' + str(args.dr) + ', Weight decay: ' + str(args.wd))
     train_dataloader, val_dataloader, test_dataloader = CSV_reader(split_file=args.spld, gene_exp_file=args.ged,  batch_size=args.bs, shuffle=True)
     inp_size = [batch[0].shape[1] for _, batch in enumerate(train_dataloader, 0)][0]
     # print([batch for _, batch in enumerate(train_dataloader, 0)][0])
@@ -154,6 +160,7 @@ def main():
 
     model = VAE(Encoder(input_size=inp_size), Decoder(input_size=inp_size)).to(DEVICE)  # Or give number of layers as arguments.
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10, verbose=True)
     
     train_loss_history = []
     val_loss_history = []
@@ -198,17 +205,19 @@ def main():
         
         val_loss_history.append(overall_val_loss / (batch_idx*args.bs))
 
+        # lr_scheduler.step(overall_val_loss)
+
         end = time.time()
-        with open('train_SyNet_VAE.log', 'a') as log:
+        with open(args.logd, 'a') as log:
             csv_writer = csv.writer(log)
             csv_writer.writerow([str(epoch + 1), str(end-start), str(overall_train_loss / (batch_idx*args.bs)), str(overall_val_loss / (batch_idx*args.bs))])
 
-
-    
+    print('min val_loss: ' + str("%.3f" % min(val_loss_history)) + ', Epoch: ' + str(val_loss_history.index(min(val_loss_history))+1))
     plt.plot(train_loss_history, label='train_loss')
     plt.plot(val_loss_history,label='val_loss')
     plt.legend()
-    plt.savefig("/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/images/loss_history.png")
+    plt.savefig(args.imd)
 
 if __name__ == "__main__":
     main()  
+    # torch.save(model.state_dict(), args.state_dict_dir)
