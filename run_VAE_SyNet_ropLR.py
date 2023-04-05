@@ -12,7 +12,6 @@ import torch.utils.data
 import torch.nn.parallel
 import torch.optim as optim
 
-
 from make_dataloaders_SyNet import CSV_reader
 
 # Key word arguments
@@ -30,6 +29,8 @@ parser.add_argument('--imd', type=str, default='/hpc/compgen/users/cchang/Projec
 parser.add_argument('--lrf', type=float, default=0.1, help='learning rate step factor')
 parser.add_argument('--conf', type=str, default='unnamed_config', help='configuration name')
 parser.add_argument('--cvbs', type=str, default='unnamed_batch_split', help='cross validation batch split')
+parser.add_argument('--idx', type=int, default=0, help='index of sample to be plot')
+parser.add_argument('--sdp', type=str, help='state dict path')
 args = parser.parse_args()
 
 
@@ -70,28 +71,17 @@ class Encoder(nn.Module):
             for sub_module in self.layers:
                 out = sub_module(out)
             # get mean and variance 
-            mu, variance = out.chunk(2, dim=1)      
+            mu, variance = out.chunk(2, dim=1)  # It is actually log variance here. 
             
             return mu, variance
     
 class Decoder(nn.Module):
     def __init__(self, decoder_dims = [200, 500, 1000], input_size = None):  
         # input_size is the sample's input size which is also the output size of the decoder. 
-        """
-            
-        The decoder class
-            
-        """
-        #if latent_dim == None or input_size == None:
-         #   raise ValueError('Must explicitly declare input size and latent space dimension (2*latent_dim for enc)')
-            
         super(Decoder, self).__init__()
         
         if decoder_dims == None or input_size == None:
             raise ValueError('Must explicitly declare input size (==output size) and decoder layer size')
-            
-        # self.inp_dim = decoder_dims[0]
-        #self.zdim = decoder_dims[-1]
 
         current_dim = decoder_dims[0]
         self.layers = nn.ModuleList()
@@ -103,16 +93,13 @@ class Decoder(nn.Module):
             self.layers.append(nn.BatchNorm1d(hdim))
             current_dim = hdim
         self.layers.append(nn.Linear(current_dim, input_size))
+        self.layers.append(nn.Tanh())
 
     def forward(self, z):
-        """
-            
-        Forward pass of the Decoder
-            
-        """
         out = z
         for sub_module in self.layers:
             out = sub_module(out)
+        # out = nn.Tanh()(out)  # Add a tanh activation function here. 
         return out
     
 class VAE(nn.Module):
@@ -173,7 +160,7 @@ def main():
     train_loss_history = []
     train_loss_history_corrected = []
     val_loss_history = []
-    with open('/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/log_files/train_SyNet_VAE_batch-un-corrected_' + str(args.cvbs) + str(args.conf) + '.log', 'w') as log:
+    with open('/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/batch_corrected_output/log_files/train_SyNet_VAE_batch-corrected_' + str(args.cvbs) + '_' + str(args.conf) + '.log', 'w') as log:
         csv_writer=csv.writer(log)
         csv_writer.writerow(['epoch', 'time_taken', 'train_loss', 'train_loss_corrected', 'val_loss'])
 
@@ -243,9 +230,9 @@ def main():
         lr_scheduler.step(overall_val_loss)  # Look at the sum of loss of the epoch. 
 
         end = time.time()
-        if average_val_loss < 750: 
-            torch.save(model.state_dict(), '/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/trained_model_state_dict/state_dict_' + str(args.conf) + '_' + str(args.cvbs) + '_epoch' + str(epoch + 1) + '.pt')
-        with open('/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/log_files/train_SyNet_VAE_batch-un-corrected_' + str(args.cvbs) + '_' + str(args.conf) + '.log', 'a') as log:
+        if average_val_loss < 1000: 
+            torch.save(model.state_dict(), '/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/batch_corrected_output/trained_model_state_dict/state_dict_' + str(args.conf) + '_' + str(args.cvbs) + '_epoch' + str(epoch + 1) + '_.pt')
+        with open('/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/batch_corrected_output/log_files/train_SyNet_VAE_batch-corrected_' + str(args.cvbs) + '_' + str(args.conf) + '.log', 'a') as log:
             csv_writer = csv.writer(log)
             csv_writer.writerow([str(epoch + 1), str(end-start), str(overall_train_loss / (len(train_dataloader.dataset))), str(average_train_loss_corrected), str(average_val_loss)])
 
@@ -254,7 +241,7 @@ def main():
     plt.plot(train_loss_history_corrected, label='corrected_train_loss')
     plt.plot(val_loss_history,label='val_loss')
     plt.legend()
-    plt.savefig('/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/images/loss_history_batch-un-corrected_' +  str(args.cvbs) + '_' + str(args.conf) +'.png')
+    plt.savefig('/hpc/compgen/users/cchang/Projects/gene_exp_VAE/data/batch_corrected_output/images/loss_history_batch-corrected_' +  str(args.cvbs) + '_' + str(args.conf) +'.png')
 
 if __name__ == "__main__":
     main()  
