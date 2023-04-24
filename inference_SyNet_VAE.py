@@ -1,4 +1,4 @@
-from run_VAE_SyNet_ropLR import DEVICE, Encoder, Decoder, VAE
+from run_VAE_SyNet_ropLR_tanh_scalef import DEVICE, Encoder, Decoder, VAE
 from make_dataloaders_SyNet import test_set_reader
 import matplotlib.pyplot as plt
 import torch
