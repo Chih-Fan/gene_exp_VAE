@@ -123,6 +123,7 @@ def main():
     start = time.time()
     # train_dataloader, val_dataloader, test_dataloader = CSV_reader(split_file=args_.spld, gene_exp_file=args_.ged,  train_batch_size=args_.trbs, val_batch_size=args_.valbs, test_batch_size=32, surv_labels_file=surv_labels_file,  shuffle=False)
     test_dataloader = test_set_reader(split_file=args_.spld, gene_exp_file=args_.ged, surv_labels_file=surv_labels_file, test_batch_size=args_.tebs, shuffle=False) 
+    print(x for (x, y) in test_dataloader)
     test_inp_size = [x.shape[2] for batch_idx, (x, y) in enumerate(test_dataloader)][0]
     # print("This is the test_inp_size: " + str(test_inp_size))
     
@@ -151,6 +152,7 @@ def main():
             x = x.to(torch.float32)
             x = x.to(DEVICE)
             z, mu, log_var, mu_std, x_r= test_model(x)
+            
             if batch_idx == 0:
                 mu_cat = mu
                 mu_std_cat = mu_std
@@ -180,6 +182,7 @@ def main():
     
     end = time.time()
     torch.save(mu_std_cat, '../data/new0418/embedding_tensors/embedding_' +  str(args_.cvbs) + '_' + str(args_.conf) +'.pt')
+    torch.save(y_cat, '../data/new0418/embedding_tensors/surv_labels_' +  str(args_.cvbs) + '_' + str(args_.conf) +'.pt')
     PCA_latent(mu=mu_cat, mu_std=mu_std_cat, y=y_cat)
     umap_latent(mu=mu_cat, mu_std=mu_std_cat, y=y_cat)
     

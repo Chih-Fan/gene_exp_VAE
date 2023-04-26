@@ -308,7 +308,7 @@ def main():
             val_loss_history.append(average_val_loss)
             average_pearson_val = epoch_sum_pearson_val / len(val_dataloader.dataset)
             pearson_history_val.append(average_pearson_val)
-            average_val_reconstruction_loss = overall_val_reconstruction_loss / (len(train_dataloader.dataset))
+            average_val_reconstruction_loss = overall_val_reconstruction_loss / (len(val_dataloader.dataset))
             val_reconstruction_loss_history.append(average_val_reconstruction_loss)
 
         lr_scheduler.step(overall_val_loss)  # Look at the sum of loss of the epoch. 
