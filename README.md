@@ -1,0 +1,2 @@
+# Gene_exp_VAE
+This repository contains scripts used in the project entitled "Variational Autoencoder for gene expression data in breast cancer classification" by Chih-Fan Chang. Please contact me at rcfanchang@gmail.com for any question. 
